@@ -80,8 +80,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Initialize session state
-if 'generated_images' not in st.session_state:
-    st.session_state.generated_images = []
+if 'geneall_images' not in st.session_state:
+    st.session_state.geneall_images = []
 if 'db' not in st.session_state:
     st.session_state.db = Database()
 if 'image_generator' not in st.session_state:
@@ -128,7 +128,7 @@ if st.session_state.view == "main":
         
         # View options
         st.header("👁️ View Options")
-        view_mode = st.selectbox("View Mode", ["Gallery", "Prompt History", "Statistics"])
+        view_mode = st.selectbox("View Mode", ["Gallery", "Prompt History", "Statistics", "Evaluation Report"])
 
     # Main content area
     col1, col2 = st.columns([1, 2])
@@ -319,6 +319,61 @@ if st.session_state.view == "main":
                     st.info("📊 No data available for statistics.")
             else:
                 st.error("❌ Database not connected.")
+
+        elif view_mode == "Evaluation Report":
+            st.header("📝 Evaluation Report")
+
+            if st.session_state.db.collection is not None:
+                # ✅ Get all images that have feedback
+                all_images = st.session_state.db.get_images(limit=1000)
+
+
+                if all_images:
+                    st.subheader("📈 Overall Prompt to Image Feedback")
+
+                    # Collect ratings
+                    ratings = [img["feedback_data"]["rating"] for img in all_images]
+
+                    if ratings:
+                        avg_rating = sum(ratings) / len(ratings)
+                        st.metric("Average Rating", f"{avg_rating:.2f}/10")
+                        st.metric("Total Rated Images", len(ratings))
+
+                        # Distribution of ratings
+                        from collections import Counter
+                        rating_counts = Counter(ratings)
+                        st.bar_chart(rating_counts)
+
+                        # OPTIONAL: Group ratings by style
+                        st.subheader("🎨 Rating by Style")
+                        style_scores = {}
+                        style_counts = {}
+                        for img in all_images:
+                            style = img.get('expected_style', 'Unknown')
+                            rating = img.get('feedback_data')['rating']
+                            if isinstance(rating, (int, float)):
+                                style_scores[style] = style_scores.get(style, 0) + rating
+                                style_counts[style] = style_counts.get(style, 0) + 1
+                        style_avgs = {s: style_scores[s]/style_counts[s] for s in style_scores}
+                        st.bar_chart(style_avgs)
+
+                        # Recent rated images
+                        st.subheader("📅 Recent Ratings")
+                        for img in all_images[:5]:
+                            st.markdown(
+                                f"**{img['created_at'].strftime('%Y-%m-%d %H:%M')}** | "
+                                f"Prompt: *{img['prompt'][:50]}...* | "
+                                f"Rating: ⭐ {img["feedback_data"]["rating"]}/10"
+                            )
+                    else:
+                        st.info("✅ No valid feedback ratings found.")
+                else:
+                    st.info("🖼️ No images with feedback available.")
+            else:
+                st.error("❌ Database not connected.")
+
+
+            
 
 if st.session_state.view == "feedback":
     # get last image from the session state
