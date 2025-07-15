@@ -127,13 +127,13 @@ if st.session_state.view == "main":
         gallery_limit = st.slider("Gallery Size", 5, 50, 20)
         
         # View options
-        st.header("👁️ View Options")
-        view_mode = st.selectbox("View Mode", ["Gallery", "Prompt History", "Statistics", "Evaluation Report"])
+        st.header("👁️ View Pages")
+        page = st.selectbox("Pages", ["Generate Image", "Gallery", "Prompt History", "Statistics", "Evaluation Report"])
 
-    # Main content area
-    col1, col2 = st.columns([1, 2])
+    # # Main content area
+    # col1, col2 = st.columns([1, 2])
 
-    with col1:
+    if page == "Generate Image":
         st.header("🎨 Generate Image")
         
         with st.form("image_generation_form"):
@@ -209,171 +209,173 @@ if st.session_state.view == "main":
             elif submitted and not prompt:
                 st.error("❌ Please enter a prompt description.")
 
-    with col2:
-        if view_mode == "Gallery":
-            st.header("📸 Image Gallery")
+    # with col2:
+    elif page == "Gallery":
+        st.header("📸 Image Gallery")
+        
+        # Get images from database
+        images = st.session_state.db.get_images(limit=gallery_limit)
+        
+        if images:
+            # Display images in a grid
+            cols = st.columns(2)
             
-            # Get images from database
-            images = st.session_state.db.get_images(limit=gallery_limit)
-            
-            if images:
-                # Display images in a grid
-                cols = st.columns(2)
-                
-                for i, image in enumerate(images):
-                    with cols[i % 2]:
-                        try:
-                            image_path = os.path.join(settings.IMAGES_DIR, image['filename'])
-                            if os.path.exists(image_path):
-                                # Display image
-                                img = Image.open(image_path)
-                                st.image(img, use_container_width=True)
+            for i, image in enumerate(images):
+                with cols[i % 2]:
+                    try:
+                        image_path = os.path.join(settings.IMAGES_DIR, image['filename'])
+                        if os.path.exists(image_path):
+                            # Display image348
+                            img = Image.open(image_path)
+                            st.image(img, use_container_width=True)
+                            
+                            # Image info
+                            with st.expander(f"📝 {image['prompt'][:50]}..."):
+                                st.markdown(f"**Prompt:** {image['prompt']}")
+                                st.markdown(f"**Style:** {image['expected_style'].title()}")
+                                st.markdown(f"**Created:** {image['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
                                 
-                                # Image info
-                                with st.expander(f"📝 {image['prompt'][:50]}..."):
-                                    st.markdown(f"**Prompt:** {image['prompt']}")
-                                    st.markdown(f"**Style:** {image['expected_style'].title()}")
-                                    st.markdown(f"**Created:** {image['created_at'].strftime('%Y-%m-%d %H:%M:%S')}")
-                                    
-                                    if image.get('generation_time'):
-                                        st.markdown(f"**Generation Time:** {image['generation_time']:.1f}s")
-                                    
-                                    if image.get('file_size'):
-                                        st.markdown(f"**File Size:** {image['file_size']/1024:.1f} KB")
-                                    
-                                    # Download button
-                                    if st.button(f"📥 Download", key=f"download_{image['id']}"):
-                                        with open(image_path, "rb") as file:
-                                            st.download_button(
-                                                label="💾 Download Image",
-                                                data=file.read(),
-                                                file_name=f"{image['prompt'][:30]}.png",
-                                                mime="image/png",
-                                                key=f"download_btn_{image['id']}"
-                                            )
-                        except Exception as e:
-                            st.error(f"Error loading image: {str(e)}")
-            else:
-                st.info("🎨 No images generated yet. Create your first image!")
+                                if image.get('generation_time'):
+                                    st.markdown(f"**Generation Time:** {image['generation_time']:.1f}s")
+                                
+                                if image.get('file_size'):
+                                    st.markdown(f"**File Size:** {image['file_size']/1024:.1f} KB")
+                                
+                                # Download button
+                                if st.button(f"📥 Download", key=f"download_{image['id']}"):
+                                    with open(image_path, "rb") as file:
+                                        st.download_button(
+                                            label="💾 Download Image",
+                                            data=file.read(),
+                                            file_name=f"{image['prompt'][:30]}.png",
+                                            mime="image/png",
+                                            key=f"download_btn_{image['id']}"
+                                        )
+                    except Exception as e:
+                        st.error(f"Error loading image: {str(e)}")
+        else:
+            st.info("🎨 No images generated yet. Create your first image!")
+    
+    elif page == "Prompt History":
+        st.header("📝 Prompt History")
         
-        elif view_mode == "Prompt History":
-            st.header("📝 Prompt History")
-            
-            history = st.session_state.db.get_prompt_history()
-            
-            if history:
-                for item in history:
-                    with st.expander(f"📅 {item['created_at'].strftime('%Y-%m-%d %H:%M')}"):
-                        st.markdown(f"**Prompt:** {item['prompt']}")
-                        st.markdown(f"**Style:** {item['expected_style'].title()}")
-            else:
-                st.info("📝 No prompt history available.")
+        history = st.session_state.db.get_prompt_history()
         
-        elif view_mode == "Statistics":
-            st.header("📊 Statistics")
+        if history:
+            for item in history:
+                with st.expander(f"📅 {item['created_at'].strftime('%Y-%m-%d %H:%M')}"):
+                    st.markdown(f"**Prompt:** {item['prompt']}")
+                    st.markdown(f"**Style:** {item['expected_style'].title()}")
+        else:
+            st.info("📝 No prompt history available.")
+    
+    elif page == "Statistics":
+        st.header("📊 Statistics")
+        
+        if st.session_state.db.collection is not None:
+            # Get all images for statistics
+            all_images = st.session_state.db.get_images(limit=1000)
             
-            if st.session_state.db.collection is not None:
-                # Get all images for statistics
-                all_images = st.session_state.db.get_images(limit=1000)
+            if all_images:
+                # Style distribution
+                style_counts = {}
+                total_generation_time = 0
+                total_file_size = 0
                 
-                if all_images:
-                    # Style distribution
+                for img in all_images:
+                    style = img['expected_style']
+                    style_counts[style] = style_counts.get(style, 0) + 1
+                    
+                    if img.get('generation_time'):
+                        total_generation_time += img['generation_time']
+                    
+                    if img.get('file_size'):
+                        total_file_size += img['file_size']
+                
+                # Display metrics
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Total Images", len(all_images))
+                
+                with col2:
+                    avg_time = total_generation_time / len(all_images) if all_images else 0
+                    st.metric("Avg Generation Time", f"{avg_time:.1f}s")
+                
+                with col3:
+                    avg_size = total_file_size / len(all_images) if all_images else 0
+                    st.metric("Avg File Size", f"{avg_size/1024:.1f} KB")
+                
+                # Style distribution chart
+                st.subheader("🎨 Style Distribution")
+                st.bar_chart(style_counts)
+                
+                # Recent activity
+                st.subheader("📅 Recent Activity")
+                recent_images = all_images[:5]
+                for img in recent_images:
+                    st.markdown(f"• **{img['created_at'].strftime('%Y-%m-%d %H:%M')}** - {img['prompt'][:50]}...")
+            else:
+                st.info("📊 No data available for statistics.")
+        else:
+            st.error("❌ Database not connected.")
+
+    elif page == "Evaluation Report":
+        st.header("📝 Evaluation Report")
+
+        if st.session_state.db.collection is not None:
+            # ✅ Get all images that have feedback
+            all_images = st.session_state.db.get_images(limit=1000)
+
+
+            if all_images:
+                st.subheader("📈 Overall Prompt to Image Feedback")
+
+                # Collect ratings
+                ratings = [img["feedback_data"]["rating"] for img in all_images]
+
+                if ratings:
+                    avg_rating = sum(ratings) / len(ratings)
+                    st.metric("Average Rating", f"{avg_rating:.2f}/10")
+                    st.metric("Model generates expected images", f"{avg_rating/10*100:.1f}%")
+                    st.metric("Total Rated Images", len(ratings))
+
+                    # Distribution of ratings
+                    from collections import Counter
+                    rating_counts = Counter(ratings)
+                    st.bar_chart(rating_counts)
+
+                    # OPTIONAL: Group ratings by style
+                    st.subheader("🎨 Rating by Style")
+                    style_scores = {}
                     style_counts = {}
-                    total_generation_time = 0
-                    total_file_size = 0
-                    
                     for img in all_images:
-                        style = img['expected_style']
-                        style_counts[style] = style_counts.get(style, 0) + 1
-                        
-                        if img.get('generation_time'):
-                            total_generation_time += img['generation_time']
-                        
-                        if img.get('file_size'):
-                            total_file_size += img['file_size']
-                    
-                    # Display metrics
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.metric("Total Images", len(all_images))
-                    
-                    with col2:
-                        avg_time = total_generation_time / len(all_images) if all_images else 0
-                        st.metric("Avg Generation Time", f"{avg_time:.1f}s")
-                    
-                    with col3:
-                        avg_size = total_file_size / len(all_images) if all_images else 0
-                        st.metric("Avg File Size", f"{avg_size/1024:.1f} KB")
-                    
-                    # Style distribution chart
-                    st.subheader("🎨 Style Distribution")
-                    st.bar_chart(style_counts)
-                    
-                    # Recent activity
-                    st.subheader("📅 Recent Activity")
-                    recent_images = all_images[:5]
-                    for img in recent_images:
-                        st.markdown(f"• **{img['created_at'].strftime('%Y-%m-%d %H:%M')}** - {img['prompt'][:50]}...")
+                        style = img.get('expected_style', 'Unknown')
+                        rating = img.get('feedback_data')['rating']
+                        if isinstance(rating, (int, float)):
+                            style_scores[style] = style_scores.get(style, 0) + rating
+                            style_counts[style] = style_counts.get(style, 0) + 1
+                    style_avgs = {s: style_scores[s]/style_counts[s] for s in style_scores}
+                    st.bar_chart(style_avgs)
+
+                    # Recent rated images
+                    st.subheader("📅 Recent Ratings")
+                    for img in all_images[:5]:
+                        st.markdown(
+                            f"**{img['created_at'].strftime('%Y-%m-%d %H:%M')}** | "
+                            f"Prompt: *{img['prompt'][:80]}*... "
+                            f"Style: **{img['expected_style']}** | "
+                            f"Rating: ⭐ {img["feedback_data"]["rating"]}/10"
+                        )
                 else:
-                    st.info("📊 No data available for statistics.")
+                    st.info("✅ No valid feedback ratings found.")
             else:
-                st.error("❌ Database not connected.")
-
-        elif view_mode == "Evaluation Report":
-            st.header("📝 Evaluation Report")
-
-            if st.session_state.db.collection is not None:
-                # ✅ Get all images that have feedback
-                all_images = st.session_state.db.get_images(limit=1000)
+                st.info("🖼️ No images with feedback available.")
+        else:
+            st.error("❌ Database not connected.")
 
 
-                if all_images:
-                    st.subheader("📈 Overall Prompt to Image Feedback")
-
-                    # Collect ratings
-                    ratings = [img["feedback_data"]["rating"] for img in all_images]
-
-                    if ratings:
-                        avg_rating = sum(ratings) / len(ratings)
-                        st.metric("Average Rating", f"{avg_rating:.2f}/10")
-                        st.metric("Total Rated Images", len(ratings))
-
-                        # Distribution of ratings
-                        from collections import Counter
-                        rating_counts = Counter(ratings)
-                        st.bar_chart(rating_counts)
-
-                        # OPTIONAL: Group ratings by style
-                        st.subheader("🎨 Rating by Style")
-                        style_scores = {}
-                        style_counts = {}
-                        for img in all_images:
-                            style = img.get('expected_style', 'Unknown')
-                            rating = img.get('feedback_data')['rating']
-                            if isinstance(rating, (int, float)):
-                                style_scores[style] = style_scores.get(style, 0) + rating
-                                style_counts[style] = style_counts.get(style, 0) + 1
-                        style_avgs = {s: style_scores[s]/style_counts[s] for s in style_scores}
-                        st.bar_chart(style_avgs)
-
-                        # Recent rated images
-                        st.subheader("📅 Recent Ratings")
-                        for img in all_images[:5]:
-                            st.markdown(
-                                f"**{img['created_at'].strftime('%Y-%m-%d %H:%M')}** | "
-                                f"Prompt: *{img['prompt'][:50]}...* | "
-                                f"Rating: ⭐ {img["feedback_data"]["rating"]}/10"
-                            )
-                    else:
-                        st.info("✅ No valid feedback ratings found.")
-                else:
-                    st.info("🖼️ No images with feedback available.")
-            else:
-                st.error("❌ Database not connected.")
-
-
-            
+        
 
 if st.session_state.view == "feedback":
     # get last image from the session state
