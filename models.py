@@ -2,6 +2,10 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
 
+class FeedbackData(BaseModel):
+    rating: int
+    comment: Optional[str]
+
 class ImageRecord(BaseModel):
     id: str
     prompt: str
@@ -11,3 +15,4 @@ class ImageRecord(BaseModel):
     generation_time: Optional[float] = None
     status: str = "completed"
     file_size: Optional[int] = None
+    feedback_data: FeedbackData
