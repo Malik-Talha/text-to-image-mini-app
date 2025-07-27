@@ -46,8 +46,8 @@ Sure! Here’s the Installation section rewritten using uv (assuming your projec
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/your-username/prompt-image-generator.git
-cd prompt-image-generator 
+git clone https://github.com/Malik-Talha/text-to-image-mini-app.git
+cd text-to-image-mini-app/
 ```
 
 ### 2. Install dependencies using uv
